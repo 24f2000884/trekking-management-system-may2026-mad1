@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Assign Staff{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width:560px">
+  <h2 class="mb-1">Assign Staff</h2>
+  <p class="text-muted">Trek: <strong>{{ trek.name }}</strong> ({{ trek.location }})</p>
+  {% if staff %}
+  <form method="POST">
+    <div class="mb-3"><label class="form-label">Choose a staff member</label>
+      <select name="staff_id" class="form-select" required>
+        {% for s in staff %}
+        <option value="{{ s.id }}">{{ s.username }} ({{ s.email }})</option>
+        {% endfor %}
+      </select></div>
+    <button type="submit" class="btn btn-info">Assign</button>
+    <a href="{{ url_for('admin_treks') }}" class="btn btn-link">Cancel</a>
+  </form>
+  {% else %}
+  <div class="alert alert-warning">No active staff members yet.
+    <a href="{{ url_for('add_staff') }}">Add one first</a>.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Search — Trailhead{% endblock %}
+{% block content %}
+<div class='container mt-4'>
+  <h2 class='mb-3'>Admin Search</h2>
+  <form method='GET' action='{{ url_for("admin_search") }}' class='row g-2 my-3'>
+    <div class='col-md-5'>
+      <input type='text' name='q' value='{{ q }}' class='form-control' placeholder='Search treks or users by name' autofocus>
+    </div>
+    <div class='col-auto'>
+      <button type='submit' class='btn btn-success'>Search</button>
+    </div>
+  </form>
+
+  {% if q %}
+    <p class='text-muted'>Results for "<strong>{{ q }}</strong>"</p>
+    <h4 class='mt-4'>Treks ({{ treks|length }})</h4>
+    {% if treks %}
+    <table class='table table-striped table-hover'>
+      <thead class='table-dark'>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Location</th>
+          <th>Difficulty</th>
+          <th>Slots</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for trek in treks %}
+        <tr>
+          <td>{{ trek.id }}</td>
+          <td>{{ trek.name }}</td>
+          <td>{{ trek.location }}</td>
+          <td>{{ trek.difficulty }}</td>
+          <td>{{ trek.available_slots }} / {{ trek.total_slots }}</td>
+          <td><span class='badge bg-secondary'>{{ trek.status }}</span></td>
+          <td>
+            <a href='{{ url_for("edit_trek", trek_id=trek.id) }}' class='btn btn-sm btn-outline-primary'>Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class='text-muted'>No treks match your search.</p>
+    {% endif %}
+    <h4 class='mt-4'>Users ({{ users|length }})</h4>
+    {% if users %}
+    <table class='table table-striped table-hover'>
+      <thead class='table-dark'>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>{{ user.id }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.role }}</td>
+          <td>
+            {% if user.is_blacklisted %}
+              <span class='badge bg-danger'>Blacklisted</span>
+            {% else %}
+              <span class='badge bg-success'>Active</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method='POST' action='{{ url_for("blacklist_user", user_id=user.id) }}' style='display:inline'>
+              <button type='submit' class='btn btn-sm
+                {% if user.is_blacklisted %}btn-outline-success{% else %}btn-outline-danger{% endif %}'>
+                {% if user.is_blacklisted %}Un-blacklist{% else %}Blacklist{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class='text-muted'>No users matched your search.</p>
+    {% endif %}
+
+  {% else %}
+    <p class='text-muted'>Type a name above and hit Search to find treks or users.</p>
+  {% endif %}
+</div>
+{% endblock %}

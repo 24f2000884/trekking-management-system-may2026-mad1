@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Manage Users{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">Manage Users</h2>
+  <table class="table table-striped align-middle">
+    <thead><tr><th>Username</th><th>Email</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td><td>{{ u.email }}</td>
+        <td>{% if u.is_blacklisted %}<span class="badge bg-danger">Blacklisted</span>
+            {% else %}<span class="badge bg-success">Active</span>{% endif %}</td>
+        <td>
+          <form method="POST" action="{{ url_for('blacklist_user', user_id=u.id) }}">
+            <button class="btn btn-sm {% if u.is_blacklisted %}btn-outline-success{% else %}btn-outline-danger{% endif %}">
+              {% if u.is_blacklisted %}Un-blacklist{% else %}Blacklist{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-muted">No trekkers registered yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
