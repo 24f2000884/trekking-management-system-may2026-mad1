@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Update Trek: Trailhikers{% endblock %}
+{% block content %}
+<div class='container mt-5' style='max-width:520px'>
+  <h2 class='mb-1'>Update: {{ trek.name }}</h2>
+  <p class='text-muted'>{{ trek.location }} · {{ trek.difficulty }} · {{ trek.duration_days }} days</p>
+  <form method='POST'>
+    <div class='mb-3'>
+      <label class='form-label'>Available slots</label>
+      <input type='number' name='slots' class='form-control'
+             value='{{ trek.available_slots }}'
+             min='0' max='{{ trek.total_slots }}' required>
+      <div class='form-text'>Total slots: {{ trek.total_slots }}</div>
+    </div>
+    <div class='mb-3'>
+      <label class='form-label'>Status</label>
+      <select name='status' class='form-select' required> {% for s in ['Pending','Approved','Open','Closed','Completed'] %}
+        <option value='{{ s }}' {% if trek.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type='submit' class='btn btn-success w-100'>Save changes</button>
+    <a href='{{ url_for("staff_dashboard") }}'
+       class='btn btn-outline-secondary w-100 mt-2'>Cancel</a>
+  </form>
+</div>
+{% endblock %}

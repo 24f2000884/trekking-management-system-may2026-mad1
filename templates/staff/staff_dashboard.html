@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Staff Dashboard: Trailhikers{% endblock %}
+{% block content %}
+<div class='container mt-4'>
+  <h2 class='mb-1'>Staff Dashboard</h2>
+  <p class='text-muted'>Treks assigned to you: {{ treks|length }}</p>
+  {% if treks %}
+  <table class='table table-striped table-hover mt-3'>
+    <thead class='table-dark'>
+      <tr>
+        <th>Trek</th>
+        <th>Location</th>
+        <th>Difficulty</th>
+        <th>Dates</th>
+        <th>Slots left</th>
+        <th>Participants</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for trek in treks %}
+      <tr>
+        <td>{{ trek.name }}</td>
+        <td>{{ trek.location }}</td>
+        <td>{{ trek.difficulty }}</td>
+        <td>{{ trek.start_date }} → {{ trek.end_date }}</td>
+        <td>{{ trek.available_slots }} / {{ trek.total_slots }}</td>
+        <td><span class='badge bg-info text-dark'>{{ trek_counts[trek.id] }}</span></td>
+        <td><span class='badge bg-secondary'>{{ trek.status }}</span></td>
+        <td>
+          <a href='{{ url_for("staff_update_trek", trek_id=trek.id) }}' class='btn btn-sm btn-outline-primary'>Update</a>
+          <a href='{{ url_for("staff_participants", trek_id=trek.id) }}' class='btn btn-sm btn-outline-success'>Participants</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class='alert alert-info mt-3'> No treks has been assigned to you yet. Contact the admin for further assistance.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

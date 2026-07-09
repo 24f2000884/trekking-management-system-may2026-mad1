@@ -23,11 +23,11 @@ def login_required(f):
 
 def admin_access_required(f):
     @wraps(f)
-    def decorated(*args, **Kwargs):
+    def decorated(*args, **kwargs):
         if session.get('role')!='admin':
             flash('Sorry, Access Denied, Only for Admins.','danger')
             return redirect(url_for('login'))
-        return f(*args, **Kwargs)
+        return f(*args, **kwargs)
     return decorated
 
 def staff_access_required(f):
@@ -161,7 +161,7 @@ def edit_trek(trek_id):
         db.session.commit()
         flash('The trek has been updated successfully.','success')
         return redirect(url_for('admin_treks'))
-    return render_template('/admin/edit_trek.html')
+    return render_template('admin/edit_trek.html',trek=t)
 
 @app.route('/admin/trek/delete/<int:trek_id>',methods=['POST'])
 @admin_access_required
@@ -236,6 +236,47 @@ def admin_search():
     treks = Trek.query.filter(Trek.name.ilike(f'%{q}%')).all() if q else []
     users = User.query.filter(User.username.ilike(f'%{q}%')).all() if q else []
     return render_template('admin/search.html', treks=treks, users=users,q=q)
+
+
+@app.route('/staff/dashboard')
+@staff_access_required
+def staff_dashboard():
+    staff_id=session['user_id']
+    assignments=TrekStaffAssignment.query.filter_by(staff_id=staff_id).all()
+    trek_ids=[assignment.trek_id for assignment in assignments]
+    treks=Trek.query.filter(Trek.id.in_(trek_ids)).all()
+    trek_counts={}
+    for t in treks:
+        trek_counts[t.id]=Booking.query.filter_by(trek_id=t.id).count()
+    return render_template('staff/staff_dashboard.html',treks=treks,trek_counts=trek_counts)
+
+def is_staff_assigned(trek_id):
+    return TrekStaffAssignment.query.filter_by(trek_id=trek_id,staff_id=session['user_id']).first() is not None
+
+@app.route('/staff/trek/<int:trek_id>/update',methods=['GET','POST'])
+@staff_access_required
+def staff_update_trek(trek_id):
+    if not is_staff_assigned(trek_id):
+        flash('Warning:Access Denied, You are not assigned to this trek, KINDLY CHECK.','danger')
+        return redirect(url_for('staff_dashboard'))
+    trek=Trek.query.get_or_404(trek_id)
+    if request.method=='POST':
+        trek.available_slots=int(request.form['slots'])
+        trek.status=request.form['status']
+        db.session.commit()
+        flash('Trek status has been updated Successfully.','success')
+        return redirect(url_for('staff_dashboard'))
+    return render_template('staff/update_trek.html',trek=trek)
+
+@app.route('/staff/trek/<int:trek_id>/participants')
+@staff_access_required
+def staff_participants(trek_id):
+    if not is_staff_assigned(trek_id):
+        flash('Warning:Access Denied, You are not assigned to this trek, KINDLY CHECK.','danger')
+        return redirect(url_for('staff_dashboard'))
+    trek=Trek.query.get_or_404(trek_id)
+    participants=Booking.query.filter_by(trek_id=trek_id).all()
+    return render_template('staff/participants.html',trek=trek,participants=participants)
 
 
 
