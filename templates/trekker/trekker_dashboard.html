@@ -1,8 +1,5 @@
 {% extends 'base.html' %}
 {% block title %}Trekker Dashboard: Trailhikers{% endblock %}
-<div>
-    <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-secondary btn-sm">Edit profile</a>
-</div>
 {% block content %}
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
@@ -10,7 +7,6 @@
       <h2 class="mb-1">Welcome To TrailHikers, {{ session.username }}</h2>
       <p class="text-muted mb-0">Find a hike, book your slot, and track your trips.</p>
     </div>
-    <a href="{{ url_for('trekker_treks') }}" class="btn btn-success">Browse treks</a>
   </div>
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-4">

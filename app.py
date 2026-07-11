@@ -158,6 +158,11 @@ def edit_trek(trek_id):
         t.difficulty = request.form['difficulty']
         t.available_slots = int(request.form['slots'])
         t.status = request.form['status']
+        if t.status=='Completed':
+            Booking.query.filter_by(trek_id=trek_id,status='Booked').update({'status':'Completed'})
+            db.session.commit()
+            flash("The trek has been marked completed successfully.",'success')
+            return redirect(url_for('admin_treks'))
         db.session.commit()
         flash('The trek has been updated successfully.','success')
         return redirect(url_for('admin_treks'))
@@ -237,6 +242,11 @@ def admin_search():
     users = User.query.filter(User.username.ilike(f'%{q}%')).all() if q else []
     return render_template('admin/search.html', treks=treks, users=users,q=q)
 
+@app.route('/admin/bookings')
+@admin_access_required
+def admin_bookings():
+    bookings=Booking.query.order_by(Booking.booking_date.desc()).all()
+    return render_template('admin/bookings.html', bookings=bookings)
 
 @app.route('/staff/dashboard')
 @staff_access_required
@@ -313,7 +323,7 @@ def edit_profile():
         return redirect(url_for('trekker_dashboard'))
     return render_template('trekker/profile.html',user=user)
        
-       
+
 @app.route('/trekker/treks')
 @trekker_access_required
 def trekker_treks():
