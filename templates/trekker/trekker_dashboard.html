@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Trekker Dashboard: Trailhikers{% endblock %}
+{% block content %}
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h2 class="mb-1">Welcome To TrailHikers, {{ session.username }}</h2>
+      <p class="text-muted mb-0">Find a hike, book your slot, and track your trips.</p>
+    </div>
+    <a href="{{ url_for('trekker_treks') }}" class="btn btn-success">Browse treks</a>
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4">
+      <div class="card text-center shadow-sm h-100">
+        <div class="card-body">
+          <div class="display-6 fw-bold">{{ open_treks|length }}</div>
+          <div class="text-muted small">Open treks</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="card text-center shadow-sm h-100">
+        <div class="card-body">
+          <div class="display-6 fw-bold">{{ my_bookings|selectattr('status','equalto','Booked')|list|length }}</div>
+          <div class="text-muted small">Active bookings</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card text-center shadow-sm h-100 position-relative">
+        <div class="card-body">
+          <div class="display-6 fw-bold">{{ my_bookings|length }}</div>
+          <div class="text-muted small">Total bookings</div>
+          <a href="{{ url_for('trekker_bookings') }}" class="stretched-link" aria-label="View all bookings"></a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h4 class="mb-0">Open treks</h4>
+    <a href="{{ url_for('trekker_treks') }}" class="small">See all</a>
+  </div>
+  {% if open_treks %}
+  <div class="row g-3 mb-4">
+    {% for trek in open_treks[:3] %}
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <h5 class="card-title mb-1">{{ trek.name }}</h5>
+            <span class="badge bg-secondary">{{ trek.difficulty }}</span>
+          </div>
+          <p class="text-muted small mb-2">{{ trek.location }} · {{ trek.duration_days }} days</p>
+          <p class="mb-0"><span class="fw-semibold">{{ trek.available_slots }}</span> of {{ trek.total_slots }} slots left</p>
+        </div>
+        <div class="card-footer bg-white border-0 pt-0">
+          {% if trek.available_slots > 0 %}
+          <form method="POST" action="{{ url_for('book_trek', trek_id=trek.id) }}">
+            <button type="submit" class="btn btn-success btn-sm w-100">Book now</button>
+          </form>
+          {% else %}
+          <button class="btn btn-outline-secondary btn-sm w-100" disabled>Fully booked</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-light border text-center mb-4">No treks are open right now. Check back soon.</div>
+  {% endif %}
+  <h4 class="mb-2">Your recent bookings</h4>
+  {% if my_bookings %}
+  <div class="list-group shadow-sm">
+    {% for b in my_bookings[:5] %}
+    <div class="list-group-item d-flex justify-content-between align-items-center">
+      <div>
+        <div class="fw-semibold">{{ b.trek.name }}</div>
+        <div class="text-muted small">{{ b.trek.location }}</div>
+      </div>
+      {% if b.status == 'Booked' %}
+        <span class="badge bg-success">Booked</span>
+      {% elif b.status == 'Cancelled' %}
+        <span class="badge bg-secondary">Cancelled</span>
+      {% else %}
+        <span class="badge bg-info text-dark">{{ b.status }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <a href="{{ url_for('trekker_bookings') }}" class="btn btn-link px-0 mt-2">View all bookings</a>
+  {% else %}
+  <div class="alert alert-light border text-center"> You haven't booked any treks yet. <a href="{{ url_for('trekker_treks') }}">Find a trek to book.</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %} My Bookings: Trailhikers{% endblock %}
+{% block content %}
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h2 class="mb-0">My bookings</h2>
+    <a href="{{ url_for('trekker_treks') }}" class="btn btn-outline-success">Book trek</a>
+  </div>
+  {% if bookings %}
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Trek</th>
+            <th>Location</th>
+            <th>Dates</th>
+            <th>Booked on</th>
+            <th>Status</th>
+            <th>Payment</th>
+            <th class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bookings %}
+          <tr>
+            <td class="fw-semibold">{{ b.trek.name }}</td>
+            <td>{{ b.trek.location }}</td>
+            <td class="small">
+            {% if b.trek.start_date %}{{ b.trek.start_date.strftime('%d %b') }} - {{ b.trek.end_date.strftime('%d %b %Y') }}{% else %}-{% endif %}
+            </td>
+            <td class="small">{% if b.booking_date %}{{ b.booking_date.strftime('%d %b %Y') }}{% else %}-{% endif %}</td>
+            <td>
+              {% if b.status == 'Booked' %}<span class="badge bg-success">Booked</span>
+              {% elif b.status == 'Cancelled' %}<span class="badge bg-secondary">Cancelled</span>
+              {% else %}<span class="badge bg-info text-dark">{{ b.status }}</span>{% endif %}
+            </td>
+            <td>
+              {% if b.payment_status == 'Paid' %}<span class="badge bg-success">Paid</span>
+              {% else %}<span class="badge bg-warning text-dark">{{ b.payment_status }}</span>{% endif %}
+            </td>
+            <td class="text-end">
+              {% if b.status == 'Booked' %}
+              <form method="POST" action="{{ url_for('cancel_booking', trek_id=b.trek_id) }}"
+                    onsubmit="return confirm('Cancel this booking?');">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Cancel</button>
+              </form>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-light border text-center py-5">
+    <p class="mb-2">NO treks has been booked yet.</p>
+    <a href="{{ url_for('trekker_treks') }}" class="btn btn-success">Find a trek to book</a>
+  </div>
+  {% endif %}
+  <a href='{{ url_for("trekker_dashboard") }}' class='btn btn-outline-secondary'> ← Back to dashboard</a>  
+</div>
+{% endblock %}

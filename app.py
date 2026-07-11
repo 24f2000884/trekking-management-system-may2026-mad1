@@ -99,7 +99,7 @@ def login():
         elif user.role == 'staff':
             return redirect(url_for('staff_dashboard'))
         else:
-            return redirect(url_for('user_dashboard'))
+            return redirect(url_for('trekker_dashboard'))
     return render_template('auth/login.html')
     
 @app.route('/logout')
@@ -224,7 +224,7 @@ def admin_users():
 @admin_access_required
 def blacklist_user(user_id):
     user=User.query.get_or_404(user_id)
-    user.is_blacklisted= not user.is_backlisted
+    user.is_blacklisted= not user.is_blacklisted
     db.session.commit()
     flash(f'Status has been updated for user {user.username}.','success')
     return redirect(url_for('admin_users'))
@@ -279,6 +279,75 @@ def staff_participants(trek_id):
     return render_template('staff/participants.html',trek=trek,participants=participants)
 
 
+@app.route('/trekker/dashboard')
+@trekker_access_required
+def trekker_dashboard():
+    user_id= session['user_id']
+    open_treks=Trek.query.filter_by(status='Open').all()
+    my_bookings=Booking.query.filter_by(user_id=user_id).all()
+    return render_template('trekker/trekker_dashboard.html', open_treks=open_treks, my_bookings=my_bookings)
+
+@app.route('/trekker/treks')
+@trekker_access_required
+def trekker_treks():
+    q=request.args.get('q','').strip()
+    difficulty=request.args.get('difficulty','')
+    location=request.args.get('location','')
+    query=Trek.query.filter_by(status='Open')
+    if q:
+        query=query.filter(Trek.name.ilike(f'%{q}%'))
+    if difficulty:
+        query=query.filter_by(difficulty=difficulty)
+    if location:
+        query=query.filter(Trek.location.ilike(f'%{location}%'))
+    
+    treks=query.all()
+    return render_template('trekker/treks.html',treks=treks,q=q,difficulty=difficulty, location=location)
+
+@app.route('/trekker/trek/<int:trek_id>/book',methods=['POST'])
+@trekker_access_required
+def book_trek(trek_id):
+    user_id=session['user_id']
+    trek=Trek.query.get_or_404(trek_id)
+    if trek.status!='Open':
+        flash("Sorry, This trek hasn't opened yet. Check later or contact admin.",'danger')
+        return redirect(url_for('trekker_treks'))
+    if trek.available_slots<=0:
+        flash("Sorry, this trek is full,Try next time.",'danger')
+        return redirect(url_for('trekker_treks'))
+    existing=Booking.query.filter_by(user_id=user_id,trek_id=trek_id,status='Booked').first()
+    if existing:
+        flash("You already have an active booking for this trek.",'warning')
+        return redirect(url_for('trekker_treks'))
+    
+    try:
+        booking=Booking(user_id=user_id,trek_id=trek_id)
+        db.session.add(booking)
+        trek.available_slots-=1
+        db.session.commit()
+        flash(f"WOOHOO!!, Your Booking for {trek.name} is successful.",'success')
+    except Exception:
+        db.session.rollback()
+        flash("Error Occured,Try again later.",'danger')
+
+    return redirect(url_for('trekker_bookings'))
+
+@app.route('/trekker/bookings')
+@trekker_access_required
+def trekker_bookings():
+    bookings=Booking.query.filter_by(user_id=session['user_id']).all()
+    return render_template('trekker/bookings.html',bookings=bookings)
+
+
+@app.route('/trekker/trek/<int:trek_id>/cancel',methods=['POST'])
+@trekker_access_required
+def cancel_booking(trek_id):
+    booking=Booking.query.filter_by(user_id=session['user_id'],trek_id=trek_id, status='Booked').first_or_404()
+    booking.status='Cancelled'
+    booking.trek.available_slots+=1
+    db.session.commit()
+    flash('Your Booking has been cancelled.','success')
+    return redirect(url_for('trekker_bookings'))
 
 
 if __name__ == '__main__':
