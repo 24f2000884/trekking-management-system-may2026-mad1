@@ -16,16 +16,15 @@
         <td><span class="badge bg-secondary">{{ t.status }}</span></td>
         <td class="d-flex gap-1">
           <a href="{{ url_for('edit_trek', trek_id=t.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
-          {%set nexts={'Pending':['Approved'],'Approved':['Open','Pending'],'Open':['Closed'],'Completed':[]} %}
-          {% if nexts[trek.status] %}
-          <form method="Post" action="{{ url_for('update_trek_status',trek_id=trek.id) }}" class="'d-inline-flex gap-1">
-            <select name="'status" class="form-select form-select-sm" style="width:auto">
-              {% for s in nexts[trek.status]%}<option value="{{ s }}">{{s}}</option>{% endfor %}
+          {% set nexts = {'Pending':['Approved'],'Approved':['Open','Pending'],'Open':['Closed'],'Closed':['Completed'],'Completed':[]} %}
+          {% if nexts[t.status] %}
+          <form method="POST" action="{{ url_for('update_trek_status', trek_id=t.id) }}" class="d-inline-flex gap-1">
+            <select name="status" class="form-select form-select-sm" style="width:auto">
+              {% for s in nexts[t.status] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
             </select>
             <button class="btn btn-sm btn-primary">Update</button>
           </form>
-          {% else %}
-          <span class="text-muted small">Completed</span>
+          {% endif %}
           <a href="{{ url_for('assign_staff', trek_id=t.id) }}" class="btn btn-sm btn-outline-info">Assign Staff</a>
           <form method="POST" action="{{ url_for('delete_trek', trek_id=t.id) }}"
                 onsubmit="return confirm('Delete this trek and its bookings?');">

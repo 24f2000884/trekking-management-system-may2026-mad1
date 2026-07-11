@@ -278,16 +278,15 @@ def staff_update_trek(trek_id):
         return redirect(url_for('staff_dashboard'))
     return render_template('staff/update_trek.html',trek=trek)
 
-@app.route('/staff/trek/<int:trek_id>/participants')
+@app.route('/staff/trek/<int:trek_id>/trekkers')
 @staff_access_required
-def staff_participants(trek_id):
+def staff_trekkers(trek_id):
     if not is_staff_assigned(trek_id):
         flash('Warning:Access Denied, You are not assigned to this trek, KINDLY CHECK.','danger')
         return redirect(url_for('staff_dashboard'))
     trek=Trek.query.get_or_404(trek_id)
-    participants=Booking.query.filter_by(trek_id=trek_id).all()
-    return render_template('staff/participants.html',trek=trek,participants=participants)
-
+    trekkers=Booking.query.filter_by(trek_id=trek_id).all()
+    return render_template('staff/trekkers.html',trek=trek,trekkers=trekkers)
 
 @app.route('/trekker/dashboard')
 @trekker_access_required

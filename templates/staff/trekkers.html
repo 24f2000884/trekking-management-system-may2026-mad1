@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}Participants: Trailhikers{% endblock %}
+{% block title %} Trekkers: Trailhikers{% endblock %}
 {% block content %}
 <div class='container mt-4'>
-  <h2 class='mb-1'>Participants — {{ trek.name }}</h2>
-  <p class='text-muted'>{{ trek.location }} · {{ trek.start_date }} → {{ trek.end_date }} · {{ bookings|length }} booked</p>
-  {% if bookings %}
+  <h2 class='mb-1'>Trekkers - {{ trek.name }}</h2>
+  <p class='text-muted'>{{ trek.location }} . {{ trek.start_date }} → {{ trek.end_date }} . {{ trekkers|length }} booked</p>
+  {% if trekkers %}
   <table class='table table-striped table-hover mt-3'>
     <thead class='table-dark'>
       <tr>
@@ -16,15 +16,15 @@
       </tr>
     </thead>
     <tbody>
-      {% for b in bookings %}
+      {% for t in trekkers %}
       <tr>
         <td>{{ loop.index }}</td>
-        <td>{{ b.user.username }}</td>
-        <td>{{ b.user.email }}</td>
-        <td>{{ b.booking_date.strftime('%d %b %Y') }}</td>
+        <td>{{ t.user.username }}</td>
+        <td>{{ t.user.email }}</td>
+        <td>{{ t.booking_date.strftime('%d %b %Y') }}</td>
         <td>
-          <span class='badge {% if b.payment_status == "Paid" %}bg-success{% else %}bg-warning text-dark{% endif %}'>
-            {{ b.payment_status }}
+          <span class='badge {% if t.payment_status == "Paid" %}bg-success{% else %}bg-warning text-dark{% endif %}'>
+            {{ t.payment_status }}
           </span>
         </td>
       </tr>
