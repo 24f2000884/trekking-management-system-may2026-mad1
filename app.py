@@ -287,6 +287,33 @@ def trekker_dashboard():
     my_bookings=Booking.query.filter_by(user_id=user_id).all()
     return render_template('trekker/trekker_dashboard.html', open_treks=open_treks, my_bookings=my_bookings)
 
+@app.route('/trekker/profile/edit',methods=['GET','POST'])
+@trekker_access_required
+def edit_profile():
+    user=User.query.get_or_404(session['user_id'])
+    if request.method=='POST':
+        username=request.form['username'].strip()
+        email=request.form['email'].strip()
+        contact=request.form('contact','').strip()
+
+        if User.query.filter(User.username ==username,User.id!=user.id).first():
+            flash('Sorry, This Username is taken, try something else.','danger')
+            return redirect(url_for('edit_profile'))
+        
+        if User.query.filter(User.email==email,User.id!=user.id).first():
+            flash("Sorry, this email is already registered, use another email or sign in.",'danger')
+            return redirect(url_for('edit_profile'))
+        
+        user.username= username
+        user.email=email
+        user.contact=contact
+        db.session.commit()
+        session['username']=user.username
+        flash('Your has been successfully updated. Book your new adventure','success')
+        return redirect(url_for('trekker_dashboard'))
+    return render_template('trekker/profile.html',user=user)
+       
+       
 @app.route('/trekker/treks')
 @trekker_access_required
 def trekker_treks():
@@ -348,6 +375,28 @@ def cancel_booking(trek_id):
     db.session.commit()
     flash('Your Booking has been cancelled.','success')
     return redirect(url_for('trekker_bookings'))
+
+@app.route('/trekker/history')
+@trekker_access_required
+def trekker_history():
+    history=Booking.query.filter(Booking.user_id==session['user_id'],Booking.status.in_(['Completed','Cancelled'])).order_by(Booking.booking_date.desc()).all()
+    return render_template('/trekker/history.html', history=history)
+
+VALID_CYCLE={'Pending': ['Approved'],'Approved': ['Open','Pending'],'Open': ['Closed'],'Closed':['Completed'],'Completed': [],}
+@app.route('/admin/trek/<int:trek_id>/status',methods=['POST'])
+@admin_access_required
+def update_trek_status(trek_id):
+    trek=Trek.query.get_or_404(trek_id)
+    new_status=request.form['status']
+    if new_status not in VALID_CYCLE.get(trek.status,[]):
+        flash(f'You cannot move forward from {trek.status} to {new_status}.','danger')
+        return redirect(url_for('admin_treks'))
+    trek.status=new_status
+    if new_status=='Completed':
+        Booking.query.filter_by(trek_id=trek_id,status='Booked').update({'status':'Completed'})
+    db.session.commit()
+    flash(f'Trek status has been updated to {new_status}.','success')
+    return redirect(url_for('admin_treks'))
 
 
 if __name__ == '__main__':

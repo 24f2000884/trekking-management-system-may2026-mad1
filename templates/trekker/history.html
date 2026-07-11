@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Trek History: Trailhikers{% endblock %}
+{% block content %}
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h2 class="mb-1">My trek history</h2>
+      <p class="text-muted mb-0">Treks that you've completed or cancelled.</p>
+    </div>
+    <a href="{{ url_for('trekker_bookings') }}" class="btn btn-outline-success">Active bookings</a>
+  </div>
+  {% if history %}
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Trek</th>
+            <th>Location</th>
+            <th>Dates</th>
+            <th>Booked on</th>
+            <th>Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in history %}
+          <tr>
+            <td class="fw-semibold">{{ b.trek.name }}</td>
+            <td>{{ b.trek.location }}</td>
+            <td class="small">
+              {% if b.trek.start_date %}{{ b.trek.start_date.strftime('%d %b') }} - {{ b.trek.end_date.strftime('%d %b %Y') }}{% else %}-{% endif %}
+            </td>
+            <td class="small">{% if b.booking_date %}{{ b.booking_date.strftime('%d %b %Y') }}{% else %}-{% endif %}</td>
+            <td>
+              {% if b.status == 'Completed' %}<span class="badge bg-info text-dark">Completed</span>
+              {% else %}<span class="badge bg-secondary">Cancelled</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-light border text-center py-5">
+    <p class="mb-2">No past treks yet.</p>
+    <a href="{{ url_for('trekker_treks') }}" class="btn btn-success">Browse treks</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

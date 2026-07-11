@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}All Bookings: Trailhikers{% endblock %}
+{% block content %}
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h2 class="mb-1">All bookings</h2>
+      <p class="text-muted mb-0">All the booking across all trekkers.</p>
+    </div>
+    <a href="{{ url_for('admin_treks') }}" class="btn btn-outline-secondary">Manage treks</a>
+  </div>
+  {% if bookings %}
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Trekker</th>
+            <th>Trek</th>
+            <th>Location</th>
+            <th>Booked on</th>
+            <th>Status</th>
+            <th>Payment</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bookings %}
+          <tr>
+            <td class="text-muted">{{ b.id }}</td>
+            <td class="fw-semibold">{{ b.user.username }}</td>
+            <td>{{ b.trek.name }}</td>
+            <td>{{ b.trek.location }}</td>
+            <td class="small">{% if b.booking_date %}{{ b.booking_date.strftime('%d %b %Y') }}{% else %}—{% endif %}</td>
+            <td>
+              {% if b.status == 'Booked' %}<span class="badge bg-success">Booked</span>
+              {% elif b.status == 'Completed' %}<span class="badge bg-info text-dark">Completed</span>
+              {% else %}<span class="badge bg-secondary">Cancelled</span>{% endif %}
+            </td>
+            <td>
+              {% if b.payment_status == 'Paid' %}<span class="badge bg-success">Paid</span>
+              {% else %}<span class="badge bg-warning text-dark">{{ b.payment_status }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="text-muted small mt-2">{{ bookings|length }} booking{{ 's' if bookings|length != 1 }} total</p>
+  {% else %}
+  <div class="alert alert-light border text-center py-5 mb-0">No bookings have been made yet.</div>
+  {% endif %}
+  <a href='{{ url_for("admin_dashboard") }}' class='btn btn-outline-secondary'> ← Back to dashboard</a>
+</div>
+{% endblock %}

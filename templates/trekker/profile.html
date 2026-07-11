@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Edit Profile: Trailhikers{% endblock %}
+{% block content %}
+<div class="container my-4" style="max-width:560px">
+  <h2 class="mb-1">Edit profile</h2>
+  <p class="text-muted">Update your account.</p>
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('edit_profile') }}">
+        <div class="mb-3">
+          <label class="form-label">Username</label>
+          <input type="text" name="username" class="form-control"
+                 value="{{ user.username }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control"
+                 value="{{ user.email }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Contact number</label>
+          <input type="text" name="contact" class="form-control"
+                 value="{{ user.contact or '' }}" placeholder="e.g. 98765 43210">
+          <div class="form-text">Optional: how can staff reach you about a trek.</div>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-success">Save changes</button>
+          <a href="{{ url_for('trekker_dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  <p class="text-muted small mt-3 mb-0">
+  Member since {{ user.created_at.strftime('%d %b %Y') if user.created_at else '-' }} . Role: {{ user.role }}
+  </p>
+</div>
+{% endblock %}

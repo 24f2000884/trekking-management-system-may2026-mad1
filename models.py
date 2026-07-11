@@ -12,6 +12,7 @@ class User(db.Model):
     role=db.Column(db.String(20), nullable=False)  
     is_active=db.Column(db.Boolean, default=True)
     is_blacklisted=db.Column(db.Boolean, default=False)
+    contact=db.column(db.String(20))
     created_at= db.Column(db.DateTime, default=datetime.utcnow)
     
     bookings= db.relationship('Booking', backref='user', lazy=True)
