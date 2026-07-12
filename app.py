@@ -60,6 +60,16 @@ def register():
         email= request.form['email'].strip()
         password= request.form['password']
 
+        if not username or len(username)<3:
+            flash("Username must be atleast 3 characters long.",'danger')
+            return redirect(url_for('register'))
+        if not email or '@' not in email:
+            flash('Use a valid email address.','danger')
+            return redirect(url_for('register'))
+        if not password or len(password)<6:
+            flash('Passwords must be atleast 6 characters long.','danger')
+            return redirect(url_for('register'))
+
         if User.query.filter_by(username=username).first():
             flash('OH,Username already Taken, Try something else.','danger')
             return redirect(url_for('register'))
@@ -129,6 +139,40 @@ def admin_treks():
 def create_trek():
     if request.method=='POST':
         from datetime import date
+        name=request.form['name'].strip()
+        location=request.form['location'].strip()
+        difficulty=request.form.get('difficulty','')
+        duration=request.form.get('duration_days','')
+        slots=request.form.get('slots','')
+        start=request.form.get('start_date','')
+        end=request.form.get('end_date','')        
+
+        if not name:
+            flash('Trek name is required','danger')
+            return(url_for('create_trek'))
+        if not location:
+            flash('Location of trek is required','danger')
+            return(url_for('create_trek'))
+        if difficulty not in ['Easy','Moderate','Hard']:
+            flash('Choose a valid Difficulty','danger')
+            return(url_for('create_trek'))
+        if not duration.isdigit() or int(duration)<=0:
+            flash('Duration of trek must be a valid number.','danger')
+            return(url_for('create_trek'))
+        if not slots.isdigit() or int(slots)<=0:
+            flash('Slots opened for trek must be a valid number.','danger')
+            return(url_for('create_trek'))
+        
+        try:
+            start_date=date.fromisoformat(start)
+            end_date=date.fromisoformat(end)
+        except ValueError:
+            flash('Enter a valid start and end date','danger')
+            return redirect(url_for('create_trek'))
+        if end_date<=start_date:
+            flash('End date should be greater than start date.','danger')
+            return redirect(url_for('create_trek'))
+
         t=Trek( 
             name=request.form['name'].strip(),
             location=request.form['location'].strip(),
@@ -153,16 +197,40 @@ def create_trek():
 def edit_trek(trek_id):
     t=Trek.query.get_or_404(trek_id)
     if request.method =="POST":
-        t.name=request.form['name'].strip()
-        t.location = request.form['location'].strip()
-        t.difficulty = request.form['difficulty']
-        t.available_slots = int(request.form['slots'])
-        t.status = request.form['status']
+        name=request.form['name'].strip()
+        location=request.form['location'].strip()
+        difficulty=request.form.get('difficulty','')
+        slots=request.form.get('slots','')
+        status=request.form.get('status','')
+
+        if not name:
+            flash('Trek name is required.','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
+        if not location:
+            flash('Location of trek is required','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
+        if difficulty not in ['Easy','Moderate','Hard']:
+            flash('Choose a valid Difficulty.','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
+        if not slots.isdigit():
+            flash('Slots opened for trek must be a valid number.','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
+        if int(slots) > t.total_slots:
+            flash(f'Available slots cannot exceed the total slots available ({t.total_slots}).','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
+        if status not in ['Pending','Approved','Open','Closed','Completed']:
+            flash('Choose a valid status for trek.','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
+ 
+        t.name=name
+        t.location=location
+        t.difficulty=difficulty
+        t.available_slots=int(slots)
+        t.status=status
         if t.status=='Completed':
             Booking.query.filter_by(trek_id=trek_id,status='Booked').update({'status':'Completed'})
             db.session.commit()
             flash("The trek has been marked completed successfully.",'success')
-            return redirect(url_for('admin_treks'))
         db.session.commit()
         flash('The trek has been updated successfully.','success')
         return redirect(url_for('admin_treks'))
@@ -190,17 +258,37 @@ def admin_staff():
 @admin_access_required
 def add_staff():
     if request.method=='POST':
-        user=User(
-        username=request.form['username'].strip(),
-        email=request.form['email'].strip(),
-        password_hash=generate_password_hash(request.form['password']),
-        role='staff')
+        username=request.form['username'].strip()
+        email=request.form['email'].strip()
+        password=request.form['password']
+        name=request.form['name'].strip()
+
+        if not username or len(username) < 3:
+            flash('Username must be atleast 3 characters long.','danger')
+            return redirect(url_for('add_staff'))
+        if not email or '@' not in email:
+            flash('Use a valid email address.','danger')
+            return redirect(url_for('add_staff'))
+        if not password or len(password) < 6:
+            flash('Password must be at least 6 characters long.','danger')
+            return redirect(url_for('add_staff'))
+        if not name:
+            flash('Staff name is required.','danger')
+            return redirect(url_for('add_staff'))
+        if User.query.filter_by(username=username).first():
+            flash('OHO, Username already Taken, Try something else.','danger')
+            return redirect(url_for('add_staff'))
+        if User.query.filter_by(email=email).first():
+            flash('This email is already Registered.Try another one','danger')
+            return redirect(url_for('add_staff'))
+
+        user=User(username=username, email=email, password_hash=generate_password_hash(password), role='staff')
         db.session.add(user)
         db.session.flush()
-        profile=StaffProfile(user_id=user.id,name=request.form['name'].strip(),contact=request.form.get("contact",''))
+        profile=StaffProfile(user_id=user.id,name=name,contact=request.form.get("contact",''))
         db.session.add(profile)
         db.session.commit()
-        flash('Staff member added.','success')
+        flash('Staff member has been added Successfully.','success')
         return redirect(url_for('admin_staff'))
     return render_template('/admin/add_staff.html')
 
@@ -271,8 +359,20 @@ def staff_update_trek(trek_id):
         return redirect(url_for('staff_dashboard'))
     trek=Trek.query.get_or_404(trek_id)
     if request.method=='POST':
-        trek.available_slots=int(request.form['slots'])
-        trek.status=request.form['status']
+        slots=request.form.get('slots','')
+        status=request.form.get('status','')
+        if not slots.isdigit():
+            flash('Slots must be a Valid number.','danger')
+            return redirect(url_for('staff_update_trek',trek_id=trek_id))
+        if int(slots) > trek.total_slots:
+            flash(f'Available slots cannot exceed the total slots ({trek.total_slots}).','danger')
+            return redirect(url_for('staff_update_trek',trek_id=trek_id))
+        if status not in ['Pending','Approved','Open','Closed','Completed']:
+            flash('Choose a valid status for trek.','danger')
+            return redirect(url_for('staff_update_trek',trek_id=trek_id))
+        
+        trek.available_slots=int(slots)
+        trek.status=status
         db.session.commit()
         flash('Trek status has been updated Successfully.','success')
         return redirect(url_for('staff_dashboard'))
@@ -303,7 +403,7 @@ def edit_profile():
     if request.method=='POST':
         username=request.form['username'].strip()
         email=request.form['email'].strip()
-        contact=request.form('contact','').strip()
+        contact=request.form.get('contact','').strip()
 
         if User.query.filter(User.username ==username,User.id!=user.id).first():
             flash('Sorry, This Username is taken, try something else.','danger')
@@ -406,6 +506,10 @@ def update_trek_status(trek_id):
     db.session.commit()
     flash(f'Trek status has been updated to {new_status}.','success')
     return redirect(url_for('admin_treks'))
+
+
+
+
 
 
 if __name__ == '__main__':
