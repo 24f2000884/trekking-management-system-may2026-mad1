@@ -24,7 +24,7 @@
         <td>{{ trek.name }}</td>
         <td>{{ trek.location }}</td>
         <td>{{ trek.difficulty }}</td>
-        <td>{{ trek.start_date }} → {{ trek.end_date }}</td>
+        <td>{{ trek.start_date }} &rarr; {{ trek.end_date }}</td>
         <td>{{ trek.available_slots }} / {{ trek.total_slots }}</td>
         <td><span class='badge bg-info text-dark'>{{ trek_counts[trek.id] }}</span></td>
         <td><span class='badge bg-secondary'>{{ trek.status }}</span></td>
@@ -36,9 +36,38 @@
       {% endfor %}
     </tbody>
   </table>
+  <div class='card mt-4'>
+    <div class='card-body'>
+      <h5 class='card-title mb-3'>Registered trekkers per trek</h5>
+      <div style='height:300px'>
+        <canvas id='trekkersChart'
+                data-labels='{{ chart_labels }}'
+                data-values='{{ chart_counts }}'></canvas>
+      </div>
+    </div>
+  </div>
   {% else %}
   <div class='alert alert-info mt-3'> No treks has been assigned to you yet. Contact the admin for further assistance.
   </div>
   {% endif %}
 </div>
+{% if treks %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const trekkers1 = document.getElementById('trekkersChart');
+  new Chart(trekkers1, {type: 'bar',
+    data: {
+      labels:JSON.parse(trekkers1.dataset.labels),
+      datasets:[{
+        label:'Registered trekkers',
+        data:JSON.parse(trekkers1.dataset.values),
+        backgroundColor: '#0d6efd'
+      }]},
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }});
+</script>
+{% endif %}
 {% endblock %}

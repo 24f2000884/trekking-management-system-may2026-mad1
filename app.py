@@ -4,6 +4,8 @@ from functools import wraps
 from flask import session, redirect, url_for,flash, render_template, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db,User,Trek,Booking,StaffProfile,TrekStaffAssignment
+import json
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'tma-mad1-secret-key-2026'
@@ -11,6 +13,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tma.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
+VALID_CYCLE={'Pending': ['Approved'],'Approved': ['Open','Pending'],'Open': ['Closed'],'Closed':['Completed'],'Completed': [],}
 
 def login_required(f):
     @wraps(f)
@@ -126,7 +129,13 @@ def admin_dashboard():
     total_staff=User.query.filter_by(role='staff').count()
     total_bookings=Booking.query.count()
     recent_treks=Trek.query.order_by(Trek.created_at.desc()).limit(5).all()
-    return render_template('admin/dashboard.html',total_treks=total_treks,total_users=total_users,total_staff=total_staff,total_bookings=total_bookings,recent_treks=recent_treks)
+
+    trek_names=[t.name for t in recent_treks]
+    booking_counts=[Booking.query.filter_by(trek_id=t.id).count() for t in recent_treks]
+    status_labels=['Pending','Approved','Open','Closed','Completed']
+    status_counts=[Trek.query.filter_by(status=s).count() for s in status_labels]
+
+    return render_template('admin/dashboard.html',total_treks=total_treks,total_users=total_users,total_staff=total_staff,total_bookings=total_bookings,recent_treks=recent_treks,trek_names=json.dumps(trek_names),booking_counts=json.dumps(booking_counts),status_labels=json.dumps(status_labels),status_counts=json.dumps(status_counts))
 
 @app.route('/admin/treks')
 @admin_access_required
@@ -149,19 +158,19 @@ def create_trek():
 
         if not name:
             flash('Trek name is required','danger')
-            return(url_for('create_trek'))
+            return redirect(url_for('create_trek'))
         if not location:
             flash('Location of trek is required','danger')
-            return(url_for('create_trek'))
+            return redirect(url_for('create_trek'))
         if difficulty not in ['Easy','Moderate','Hard']:
             flash('Choose a valid Difficulty','danger')
-            return(url_for('create_trek'))
+            return redirect(url_for('create_trek'))
         if not duration.isdigit() or int(duration)<=0:
             flash('Duration of trek must be a valid number.','danger')
-            return(url_for('create_trek'))
+            return redirect(url_for('create_trek'))
         if not slots.isdigit() or int(slots)<=0:
             flash('Slots opened for trek must be a valid number.','danger')
-            return(url_for('create_trek'))
+            return redirect(url_for('create_trek'))
         
         try:
             start_date=date.fromisoformat(start)
@@ -346,7 +355,11 @@ def staff_dashboard():
     trek_counts={}
     for t in treks:
         trek_counts[t.id]=Booking.query.filter_by(trek_id=t.id).count()
-    return render_template('staff/staff_dashboard.html',treks=treks,trek_counts=trek_counts)
+    
+    chart_labels=[t.name for t in treks]
+    chart_counts=[trek_counts[t.id] for t in treks]
+
+    return render_template('staff/staff_dashboard.html',treks=treks,trek_counts=trek_counts, chart_labels=json.dumps(chart_labels),chart_counts=json.dumps(chart_counts))
 
 def is_staff_assigned(trek_id):
     return TrekStaffAssignment.query.filter_by(trek_id=trek_id,staff_id=session['user_id']).first() is not None
@@ -394,7 +407,9 @@ def trekker_dashboard():
     user_id= session['user_id']
     open_treks=Trek.query.filter_by(status='Open').all()
     my_bookings=Booking.query.filter_by(user_id=user_id).all()
-    return render_template('trekker/trekker_dashboard.html', open_treks=open_treks, my_bookings=my_bookings)
+    history_labels=['Booked','Completed','Cancelled']
+    history_counts=[Booking.query.filter_by(user_id=user_id,status=s).count() for s in history_labels]
+    return render_template('trekker/trekker_dashboard.html', open_treks=open_treks, my_bookings=my_bookings, history_labels=json.dumps(history_labels),history_counts=json.dumps(history_counts))
 
 @app.route('/trekker/profile/edit',methods=['GET','POST'])
 @trekker_access_required
@@ -491,7 +506,7 @@ def trekker_history():
     history=Booking.query.filter(Booking.user_id==session['user_id'],Booking.status.in_(['Completed','Cancelled'])).order_by(Booking.booking_date.desc()).all()
     return render_template('/trekker/history.html', history=history)
 
-VALID_CYCLE={'Pending': ['Approved'],'Approved': ['Open','Pending'],'Open': ['Closed'],'Closed':['Completed'],'Completed': [],}
+
 @app.route('/admin/trek/<int:trek_id>/status',methods=['POST'])
 @admin_access_required
 def update_trek_status(trek_id):
@@ -519,27 +534,27 @@ def api_treks():
 def api_trek_detail(trek_id):
     t=Trek.query.get(trek_id)
     if not t:
-        return jsonify({'Error,Trek not found.'}),404
+        return jsonify({'error':'Trek not found.'}),404
     return jsonify({'id':t.id,'name':t.name,'location':t.location,'difficulty':t.difficulty,'duration_days':t.duration_days,'status':t.status,'available_slots':t.available_slots,'total_slots':t.total_slots,'description':t.description,'start_date':t.start_date.isoformat() if t.start_date else None,'end_date':t.end_date.isoformat() if t.end_date else None,}),200
  
 @app.route('/api/bookings',methods=['POST'])
 def api_create_booking():
     if 'user_id' not in session:
-        return jsonify({'Login is required.'}),401
+        return jsonify({'error':'Login is required.'}),401
     data=request.get_json(silent=True) or {}
     try:
         trek_id=int(data.get('trek_id'))
     except (TypeError,ValueError):
-        return jsonify({'A valid trek_id is required.'}),400
+        return jsonify({'error':'A valid trek_id is required.'}),400
     trek=Trek.query.get(trek_id)
     if not trek:
-        return jsonify({'Trek not found.'}),404
+        return jsonify({'error':'Trek not found.'}),404
     if trek.status!='Open':
-        return jsonify({'Trek is not open for booking yet.'}),400
+        return jsonify({'error':'Trek is not open for booking yet.'}),400
     if trek.available_slots<=0:
-        return jsonify({'Trek is full. Try next time'}),400
+        return jsonify({'error':'Trek is full. Try next time'}),400
     if Booking.query.filter_by(user_id=session['user_id'],trek_id=trek_id,status='Booked').first():
-        return jsonify({'You already have an active booking for this trek.'}),400
+        return jsonify({'error':'You already have an active booking for this trek.'}),400
     booking=Booking(user_id=session['user_id'],trek_id=trek_id)
     db.session.add(booking)
     trek.available_slots-=1
@@ -549,28 +564,28 @@ def api_create_booking():
 @app.route('/api/treks/<int:trek_id>',methods=['PUT'])
 def api_update_trek(trek_id):
     if session.get('role')!='admin':
-        return jsonify({'Admin access required.'}),401
+        return jsonify({'error':'Admin access required.'}),401
     trek=Trek.query.get(trek_id)
     if not trek:
-        return jsonify({'Trek not found.'}),404
+        return jsonify({'error':'Trek not found.'}),404
     data=request.get_json(silent=True) or {}
     if 'name' in data:
         if not str(data['name']).strip():
-            return jsonify({'Name cannot be empty.'}),400
+            return jsonify({'error':'Name cannot be empty.'}),400
         trek.name=str(data['name']).strip()
     if 'location' in data:
         trek.location=str(data['location']).strip()
     if 'difficulty' in data:
         if data['difficulty'] not in ['Easy','Moderate','Hard']:
-            return jsonify({'Invalid difficulty.'}),400
+            return jsonify({'error':'Invalid difficulty.'}),400
         trek.difficulty=data['difficulty']
     if 'available_slots' in data:
         if not isinstance(data['available_slots'],int) or data['available_slots']<0:
-            return jsonify({'Available_slots must be a valid number.'}),400
+            return jsonify({'error':'Available_slots must be a valid number.'}),400
         trek.available_slots=data['available_slots']
     if 'status' in data:
         if data['status'] not in ['Pending','Approved','Open','Closed','Completed']:
-            return jsonify({'Invalid status.'}),400
+            return jsonify({'error':'Invalid status.'}),400
         trek.status=data['status']
     db.session.commit()
     return jsonify({'id':trek.id,'name':trek.name,'status':trek.status,'available_slots':trek.available_slots,'message':'Updated'}),200
@@ -578,13 +593,13 @@ def api_update_trek(trek_id):
 @app.route('/api/bookings/<int:booking_id>',methods=['DELETE'])
 def api_cancel_booking(booking_id):
     if 'user_id' not in session:
-        return jsonify({'Login is required.'}),401
+        return jsonify({'error':'Login is required.'}),401
     if session.get('role')=='admin':
         booking=Booking.query.get(booking_id)
     else:
         booking=Booking.query.filter_by(id=booking_id,user_id=session['user_id']).first()
     if not booking:
-        return jsonify({'Booking not found.'}),404
+        return jsonify({'error': 'Booking not found.'}),404
     if booking.status!='Cancelled':
         booking.status='Cancelled'
         booking.trek.available_slots+=1
@@ -593,6 +608,3 @@ def api_cancel_booking(booking_id):
  
 if __name__ == '__main__':
     app.run(debug=True)
-
-                              
-                             

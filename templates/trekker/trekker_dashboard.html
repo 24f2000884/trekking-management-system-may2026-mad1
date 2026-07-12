@@ -49,7 +49,7 @@
             <h5 class="card-title mb-1">{{ trek.name }}</h5>
             <span class="badge bg-secondary">{{ trek.difficulty }}</span>
           </div>
-          <p class="text-muted small mb-2">{{ trek.location }} · {{ trek.duration_days }} days</p>
+          <p class="text-muted small mb-2">{{ trek.location }} &middot; {{ trek.duration_days }} days</p>
           <p class="mb-0"><span class="fw-semibold">{{ trek.available_slots }}</span> of {{ trek.total_slots }} slots left</p>
         </div>
         <div class="card-footer bg-white border-0 pt-0">
@@ -88,9 +88,39 @@
     {% endfor %}
   </div>
   <a href="{{ url_for('trekker_bookings') }}" class="btn btn-link px-0 mt-2">View all bookings</a>
+  <div class="card shadow-sm mt-4">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Your trekking history</h5>
+      <div style="height:300px">
+        <canvas id="historyChart"
+                data-labels='{{ history_labels }}'
+                data-values='{{ history_counts }}'></canvas>
+      </div>
+    </div>
+  </div>
   {% else %}
   <div class="alert alert-light border text-center"> You haven't booked any treks yet. <a href="{{ url_for('trekker_treks') }}">Find a trek to book.</a>
   </div>
   {% endif %}
 </div>
+{% if my_bookings %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const history1 = document.getElementById('historyChart');
+  new Chart(history1, {type: 'bar',
+    data: {
+      labels: JSON.parse(history1.dataset.labels),
+      datasets: [{
+        label: 'Bookings',
+        data: JSON.parse(history1.dataset.values),
+        backgroundColor: ['#198754', '#0dcaf0', '#6c757d']
+      }]},
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }});
+</script>
+{% endif %}
 {% endblock %}
