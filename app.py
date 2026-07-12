@@ -1,7 +1,7 @@
 #app.py
 from flask import Flask
 from functools import wraps
-from flask import session, redirect, url_for,flash, render_template, request
+from flask import session, redirect, url_for,flash, render_template, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db,User,Trek,Booking,StaffProfile,TrekStaffAssignment
 
@@ -507,13 +507,92 @@ def update_trek_status(trek_id):
     flash(f'Trek status has been updated to {new_status}.','success')
     return redirect(url_for('admin_treks'))
 
-
-
-
-
-
+@app.route('/api/treks',methods=['GET'])
+def api_treks():
+    treks=Trek.query.all()
+    return jsonify(
+        [{'id':t.id,'name':t.name,'location':t.location, 'difficulty':t.difficulty,'status':t.status, 'available_slots':t.available_slots,'total_slots':t.total_slots, 'start_date':t.start_date.isoformat() if t.start_date else None, 'end_date':t.end_date.isoformat() if t.end_date else None,}
+        for t in treks]
+        ),200
+ 
+@app.route('/api/treks/<int:trek_id>',methods=['GET'])
+def api_trek_detail(trek_id):
+    t=Trek.query.get(trek_id)
+    if not t:
+        return jsonify({'Error,Trek not found.'}),404
+    return jsonify({'id':t.id,'name':t.name,'location':t.location,'difficulty':t.difficulty,'duration_days':t.duration_days,'status':t.status,'available_slots':t.available_slots,'total_slots':t.total_slots,'description':t.description,'start_date':t.start_date.isoformat() if t.start_date else None,'end_date':t.end_date.isoformat() if t.end_date else None,}),200
+ 
+@app.route('/api/bookings',methods=['POST'])
+def api_create_booking():
+    if 'user_id' not in session:
+        return jsonify({'Login is required.'}),401
+    data=request.get_json(silent=True) or {}
+    try:
+        trek_id=int(data.get('trek_id'))
+    except (TypeError,ValueError):
+        return jsonify({'A valid trek_id is required.'}),400
+    trek=Trek.query.get(trek_id)
+    if not trek:
+        return jsonify({'Trek not found.'}),404
+    if trek.status!='Open':
+        return jsonify({'Trek is not open for booking yet.'}),400
+    if trek.available_slots<=0:
+        return jsonify({'Trek is full. Try next time'}),400
+    if Booking.query.filter_by(user_id=session['user_id'],trek_id=trek_id,status='Booked').first():
+        return jsonify({'You already have an active booking for this trek.'}),400
+    booking=Booking(user_id=session['user_id'],trek_id=trek_id)
+    db.session.add(booking)
+    trek.available_slots-=1
+    db.session.commit()
+    return jsonify({'id':booking.id,'user_id':booking.user_id,'trek_id':booking.trek_id,'status':booking.status,'message':'Booked'}),201
+ 
+@app.route('/api/treks/<int:trek_id>',methods=['PUT'])
+def api_update_trek(trek_id):
+    if session.get('role')!='admin':
+        return jsonify({'Admin access required.'}),401
+    trek=Trek.query.get(trek_id)
+    if not trek:
+        return jsonify({'Trek not found.'}),404
+    data=request.get_json(silent=True) or {}
+    if 'name' in data:
+        if not str(data['name']).strip():
+            return jsonify({'Name cannot be empty.'}),400
+        trek.name=str(data['name']).strip()
+    if 'location' in data:
+        trek.location=str(data['location']).strip()
+    if 'difficulty' in data:
+        if data['difficulty'] not in ['Easy','Moderate','Hard']:
+            return jsonify({'Invalid difficulty.'}),400
+        trek.difficulty=data['difficulty']
+    if 'available_slots' in data:
+        if not isinstance(data['available_slots'],int) or data['available_slots']<0:
+            return jsonify({'Available_slots must be a valid number.'}),400
+        trek.available_slots=data['available_slots']
+    if 'status' in data:
+        if data['status'] not in ['Pending','Approved','Open','Closed','Completed']:
+            return jsonify({'Invalid status.'}),400
+        trek.status=data['status']
+    db.session.commit()
+    return jsonify({'id':trek.id,'name':trek.name,'status':trek.status,'available_slots':trek.available_slots,'message':'Updated'}),200
+ 
+@app.route('/api/bookings/<int:booking_id>',methods=['DELETE'])
+def api_cancel_booking(booking_id):
+    if 'user_id' not in session:
+        return jsonify({'Login is required.'}),401
+    if session.get('role')=='admin':
+        booking=Booking.query.get(booking_id)
+    else:
+        booking=Booking.query.filter_by(id=booking_id,user_id=session['user_id']).first()
+    if not booking:
+        return jsonify({'Booking not found.'}),404
+    if booking.status!='Cancelled':
+        booking.status='Cancelled'
+        booking.trek.available_slots+=1
+        db.session.commit()
+    return jsonify({'id':booking.id,'status':booking.status,'message':'Cancelled'}),200
+ 
 if __name__ == '__main__':
     app.run(debug=True)
-        
+
                               
                              
