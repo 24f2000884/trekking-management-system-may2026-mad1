@@ -15,6 +15,12 @@ db.init_app(app)
 
 VALID_CYCLE={'Pending': ['Approved'],'Approved': ['Open','Pending'],'Open': ['Closed'],'Closed':['Completed'],'Completed': [],}
 
+def can_transition(current,new):
+    return new==current or new in VALID_CYCLE.get(current,[])
+
+def complete_bookings_for(trek_id):
+    Booking.query.filter_by(trek_id=trek_id,status='Booked').update({'status':'Completed'})
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -62,6 +68,7 @@ def register():
         username= request.form['username'].strip()
         email= request.form['email'].strip()
         password= request.form['password']
+        confirm= request.form.get('confirm_password','')
 
         if not username or len(username)<3:
             flash("Username must be atleast 3 characters long.",'danger')
@@ -71,6 +78,9 @@ def register():
             return redirect(url_for('register'))
         if not password or len(password)<6:
             flash('Passwords must be atleast 6 characters long.','danger')
+            return redirect(url_for('register'))
+        if password != confirm:
+            flash('The passwords do not match. Please re-enter them.','danger')
             return redirect(url_for('register'))
 
         if User.query.filter_by(username=username).first():
@@ -101,6 +111,9 @@ def login():
             return redirect(url_for('login'))
         if user.is_blacklisted:
             flash('Your account has been deactivated, Please check.','danger')
+            return redirect(url_for('login'))
+        if not user.is_active:
+            flash('Your account is no longer active. Please contact the admin.','danger')
             return redirect(url_for('login'))
         
         session['user_id']=user.id
@@ -141,7 +154,8 @@ def admin_dashboard():
 @admin_access_required
 def admin_treks():
     treks=Trek.query.all()
-    return render_template('/admin/treks.html',treks=treks)
+    next_statuses={t.id: VALID_CYCLE.get(t.status,[]) for t in treks}
+    return render_template('/admin/treks.html',treks=treks,next_statuses=next_statuses)
 
 @app.route('/admin/trek/create', methods=['GET','POST'])
 @admin_access_required
@@ -230,6 +244,9 @@ def edit_trek(trek_id):
         if status not in ['Pending','Approved','Open','Closed','Completed']:
             flash('Choose a valid status for trek.','danger')
             return redirect(url_for('edit_trek',trek_id=trek_id))
+        if not can_transition(t.status,status):
+            flash(f'Invalid transition: a trek cannot move from {t.status} to {status}.','danger')
+            return redirect(url_for('edit_trek',trek_id=trek_id))
  
         t.name=name
         t.location=location
@@ -243,7 +260,8 @@ def edit_trek(trek_id):
         db.session.commit()
         flash('The trek has been updated successfully.','success')
         return redirect(url_for('admin_treks'))
-    return render_template('admin/edit_trek.html',trek=t)
+    allowed_statuses=[t.status]+VALID_CYCLE.get(t.status,[])
+    return render_template('admin/edit_trek.html',trek=t,allowed_statuses=allowed_statuses)
 
 @app.route('/admin/trek/delete/<int:trek_id>',methods=['POST'])
 @admin_access_required
@@ -261,7 +279,11 @@ def delete_trek(trek_id):
 @admin_access_required
 def admin_staff():
     staff=User.query.filter_by(role='staff').all()
-    return render_template('/admin/staff.html',staff=staff)
+    staff_treks={}
+    for s in staff:
+        trek_ids=[a.trek_id for a in TrekStaffAssignment.query.filter_by(staff_id=s.id).all()]
+        staff_treks[s.id]=Trek.query.filter(Trek.id.in_(trek_ids)).all()
+    return render_template('/admin/staff.html',staff=staff, staff_treks=staff_treks)
 
 @app.route('/admin/staff/add',methods=['GET','POST'])
 @admin_access_required
@@ -301,6 +323,35 @@ def add_staff():
         return redirect(url_for('admin_staff'))
     return render_template('/admin/add_staff.html')
 
+@app.route('/admin/staff/remove/<int:user_id>',methods=['POST'])
+@admin_access_required
+def remove_staff(user_id):
+    user=User.query.get_or_404(user_id)
+    if user.role!='staff':
+        flash('This user is not a staff member.','danger')
+        return redirect(url_for('admin_staff'))
+    user.is_active=False
+    TrekStaffAssignment.query.filter_by(staff_id=user_id).delete()
+    if user.staff_profile:
+        user.staff_profile.status='Inactive'
+    db.session.commit()
+    flash('Staff member has been deactivated and unassigned from all alloted treks.','success')
+    return redirect(url_for('admin_staff'))
+
+@app.route('/admin/staff/restore/<int:user_id>',methods=['POST'])
+@admin_access_required
+def restore_staff(user_id):
+    user=User.query.get_or_404(user_id)
+    if user.role!='staff':
+        flash('This user is not a staff member.','danger')
+        return redirect(url_for('admin_staff'))
+    user.is_active=True
+    if user.staff_profile:
+        user.staff_profile.status='Active'
+    db.session.commit()
+    flash('Staff member has been reactivated.','success')
+    return redirect(url_for('admin_staff'))
+
 @app.route('/admin/staff/assign/<int:trek_id>',methods=['GET','POST'])
 @admin_access_required
 def assign_staff(trek_id):
@@ -313,6 +364,8 @@ def assign_staff(trek_id):
             db.session.add(TrekStaffAssignment(trek_id=trek_id,staff_id=staff_id))
             db.session.commit()
             flash('Staff has been assigned to the trek.','success')
+        else:
+            flash('This staff member is already assigned to this trek.','warning')
         return redirect(url_for('admin_treks'))
     return render_template('admin/assign_staff.html',trek=trek,staff=all_staff)
 
@@ -345,6 +398,12 @@ def admin_bookings():
     bookings=Booking.query.order_by(Booking.booking_date.desc()).all()
     return render_template('admin/bookings.html', bookings=bookings)
 
+@app.route('/admin/history')
+@admin_access_required
+def admin_history():
+    bookings=Booking.query.order_by(Booking.booking_date.desc()).all()
+    return render_template('admin/bookings.html', bookings=bookings)
+
 @app.route('/staff/dashboard')
 @staff_access_required
 def staff_dashboard():
@@ -371,6 +430,7 @@ def staff_update_trek(trek_id):
         flash('Warning:Access Denied, You are not assigned to this trek, KINDLY CHECK.','danger')
         return redirect(url_for('staff_dashboard'))
     trek=Trek.query.get_or_404(trek_id)
+    allowed_statuses=[trek.status]+VALID_CYCLE.get(trek.status,[])
     if request.method=='POST':
         slots=request.form.get('slots','')
         status=request.form.get('status','')
@@ -383,13 +443,18 @@ def staff_update_trek(trek_id):
         if status not in ['Pending','Approved','Open','Closed','Completed']:
             flash('Choose a valid status for trek.','danger')
             return redirect(url_for('staff_update_trek',trek_id=trek_id))
+        if not can_transition(trek.status,status):
+            flash(f'Invalid transition: a trek cannot move from {trek.status} to {status}.','danger')
+            return redirect(url_for('staff_update_trek',trek_id=trek_id))
         
         trek.available_slots=int(slots)
         trek.status=status
+        if status=='Completed':
+            complete_bookings_for(trek_id)
         db.session.commit()
         flash('Trek status has been updated Successfully.','success')
         return redirect(url_for('staff_dashboard'))
-    return render_template('staff/update_trek.html',trek=trek)
+    return render_template('staff/update_trek.html',trek=trek,allowed_statuses=allowed_statuses)
 
 @app.route('/staff/trek/<int:trek_id>/trekkers')
 @staff_access_required
@@ -399,6 +464,16 @@ def staff_trekkers(trek_id):
         return redirect(url_for('staff_dashboard'))
     trek=Trek.query.get_or_404(trek_id)
     trekkers=Booking.query.filter_by(trek_id=trek_id).all()
+    return render_template('staff/trekkers.html',trek=trek,trekkers=trekkers)
+
+@app.route('/staff/trek/<int:trek_id>/history')
+@staff_access_required
+def staff_trek_history(trek_id):
+    if not is_staff_assigned(trek_id):
+        flash('Warning:Access Denied, You are not assigned to this trek, KINDLY CHECK.','danger')
+        return redirect(url_for('staff_dashboard'))
+    trek=Trek.query.get_or_404(trek_id)
+    trekkers=Booking.query.filter_by(trek_id=trek_id).order_by(Booking.booking_date.desc()).all()
     return render_template('staff/trekkers.html',trek=trek,trekkers=trekkers)
 
 @app.route('/trekker/dashboard')
@@ -522,6 +597,12 @@ def update_trek_status(trek_id):
     flash(f'Trek status has been updated to {new_status}.','success')
     return redirect(url_for('admin_treks'))
 
+
+
+
+
+
+
 @app.route('/api/treks',methods=['GET'])
 def api_treks():
     treks=Trek.query.all()
@@ -536,31 +617,7 @@ def api_trek_detail(trek_id):
     if not t:
         return jsonify({'error':'Trek not found.'}),404
     return jsonify({'id':t.id,'name':t.name,'location':t.location,'difficulty':t.difficulty,'duration_days':t.duration_days,'status':t.status,'available_slots':t.available_slots,'total_slots':t.total_slots,'description':t.description,'start_date':t.start_date.isoformat() if t.start_date else None,'end_date':t.end_date.isoformat() if t.end_date else None,}),200
- 
-@app.route('/api/bookings',methods=['POST'])
-def api_create_booking():
-    if 'user_id' not in session:
-        return jsonify({'error':'Login is required.'}),401
-    data=request.get_json(silent=True) or {}
-    try:
-        trek_id=int(data.get('trek_id'))
-    except (TypeError,ValueError):
-        return jsonify({'error':'A valid trek_id is required.'}),400
-    trek=Trek.query.get(trek_id)
-    if not trek:
-        return jsonify({'error':'Trek not found.'}),404
-    if trek.status!='Open':
-        return jsonify({'error':'Trek is not open for booking yet.'}),400
-    if trek.available_slots<=0:
-        return jsonify({'error':'Trek is full. Try next time'}),400
-    if Booking.query.filter_by(user_id=session['user_id'],trek_id=trek_id,status='Booked').first():
-        return jsonify({'error':'You already have an active booking for this trek.'}),400
-    booking=Booking(user_id=session['user_id'],trek_id=trek_id)
-    db.session.add(booking)
-    trek.available_slots-=1
-    db.session.commit()
-    return jsonify({'id':booking.id,'user_id':booking.user_id,'trek_id':booking.trek_id,'status':booking.status,'message':'Booked'}),201
- 
+
 @app.route('/api/treks/<int:trek_id>',methods=['PUT'])
 def api_update_trek(trek_id):
     if session.get('role')!='admin':
@@ -586,9 +643,38 @@ def api_update_trek(trek_id):
     if 'status' in data:
         if data['status'] not in ['Pending','Approved','Open','Closed','Completed']:
             return jsonify({'error':'Invalid status.'}),400
+        if not can_transition(trek.status,data['status']):
+            return jsonify({'error':f"Invalid transition from {trek.status} to {data['status']}."}),400
         trek.status=data['status']
+        if data['status']=='Completed':
+            complete_bookings_for(trek_id)
     db.session.commit()
     return jsonify({'id':trek.id,'name':trek.name,'status':trek.status,'available_slots':trek.available_slots,'message':'Updated'}),200
+
+@app.route('/api/bookings',methods=['POST'])
+def api_create_booking():
+    if 'user_id' not in session:
+        return jsonify({'error':'Login is required.'}),401
+    data=request.get_json(silent=True) or {}
+    try:
+        trek_id=int(data.get('trek_id'))
+    except (TypeError,ValueError):
+        return jsonify({'error':'A valid trek_id is required.'}),400
+    trek=Trek.query.get(trek_id)
+    if not trek:
+        return jsonify({'error':'Trek not found.'}),404
+    if trek.status!='Open':
+        return jsonify({'error':'Trek is not open for booking yet.'}),400
+    if trek.available_slots<=0:
+        return jsonify({'error':'Trek is full. Try next time'}),400
+    if Booking.query.filter_by(user_id=session['user_id'],trek_id=trek_id,status='Booked').first():
+        return jsonify({'error':'You already have an active booking for this trek.'}),400
+    booking=Booking(user_id=session['user_id'],trek_id=trek_id)
+    db.session.add(booking)
+    trek.available_slots-=1
+    db.session.commit()
+    return jsonify({'id':booking.id,'user_id':booking.user_id,'trek_id':booking.trek_id,'status':booking.status,'message':'Booked'}),201
+ 
  
 @app.route('/api/bookings/<int:booking_id>',methods=['DELETE'])
 def api_cancel_booking(booking_id):

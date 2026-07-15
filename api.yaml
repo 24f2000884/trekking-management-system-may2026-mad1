@@ -1,0 +1,329 @@
+openapi: 3.0.3
+
+info:
+  title: Trekking Management Application API
+  description: >
+    REST API for the Trekking Management Application, built for MAD-I.
+    The API exposes trek data and the booking engine.
+    Authentication uses the same Flask server-side session cookie as the HTML interface: log in through POST /login first, and the browser (or client) then sends the session cookie on every API call. There is no separate token.
+  version: 1.0.0
+  contact:
+    name: TMA-MAD-I Project
+
+servers:
+  - url: http://127.0.0.1:5000
+    description: Local development server
+
+tags:
+  - name: Treks
+    description: Read and update trek records
+  - name: Bookings
+    description: Create and cancel bookings
+
+paths:
+
+  /api/treks:
+    get:
+      tags: [Treks]
+      summary: List all treks
+      description: Returns every trek in the system, regardless of status. No login required.
+      operationId: getTreks
+      responses:
+        '200':
+          description: A list of treks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrekSummary'
+              example:
+                - id: 1
+                  name: Hampta Pass
+                  location: Manali
+                  difficulty: Moderate
+                  status: Open
+                  available_slots: 8
+                  total_slots: 10
+                  start_date: '2026-08-01'
+                  end_date: '2026-08-06'
+
+  /api/treks/{trek_id}:
+    parameters:
+      - name: trek_id
+        in: path
+        required: true
+        description: Primary key of the trek
+        schema:
+          type: integer
+          example: 1
+
+    get:
+      tags: [Treks]
+      summary: Get a single trek
+      description: Returns the full detail of one trek.
+      operationId: getTrekById
+      responses:
+        '200':
+          description: The trek was found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrekDetail'
+        '404':
+          description: No trek exists with that id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Trek not found.
+
+    put:
+      tags: [Treks]
+      summary: Update a trek (admin only)
+      description: >
+        Partially updates a trek. Only the fields present in the request body are changed. 
+        A status change must follow the trek lifecycle (Pending -> Approved -> Open -> Closed -> Completed); 
+        An illegal jump is rejected with 400. Setting the status to Completed also marks every still-Booked booking on that trek as Completed.
+      operationId: updateTrek
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrekUpdate'
+            example:
+              name: Hampta Pass
+              available_slots: 12
+              status: Open
+      responses:
+        '200':
+          description: The trek was updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, example: 1 }
+                  name: { type: string, example: Hampta Pass }
+                  status: { type: string, example: Open }
+                  available_slots: { type: integer, example: 12 }
+                  message: { type: string, example: Updated }
+        '400':
+          description: >
+            A field failed validation: empty name, unknown difficulty, negative slot count, unknown status, or an illegal lifecycle transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Invalid transition from Pending to Completed.
+        '401':
+          description: The caller is not logged in as an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Admin access required.
+        '404':
+          description: No trek exists with that id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/bookings:
+    post:
+      tags: [Bookings]
+      summary: Book a trek
+      description: >
+        Creates a booking for the logged-in user and decrements the trek's available_slots by one. 
+        Three server-side checks must pass first: the trek must be Open, it must have at least one free slot, and the user must not already hold an active booking on it.
+      operationId: createBooking
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trek_id]
+              properties:
+                trek_id:
+                  type: integer
+                  description: The trek to book
+                  example: 1
+      responses:
+        '201':
+          description: The booking was created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+              example:
+                id: 7
+                user_id: 3
+                trek_id: 1
+                status: Booked
+                message: Booked
+        '400':
+          description: >
+            trek_id is missing or not a number, or one of the three booking checks failed (trek not Open / trek full / already booked)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                notOpen:
+                  value: { error: Trek is not open for booking yet. }
+                full:
+                  value: { error: Trek is full. Try next time }
+                duplicate:
+                  value: { error: You already have an active booking for this trek. }
+        '401':
+          description: The caller is not logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Login is required.
+        '404':
+          description: No trek exists with that trek_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/bookings/{booking_id}:
+    parameters:
+      - name: booking_id
+        in: path
+        required: true
+        description: Primary key of the booking
+        schema:
+          type: integer
+          example: 7
+
+    delete:
+      tags: [Bookings]
+      summary: Cancel a booking
+      description: >
+        Sets the booking's status to Cancelled and returns its slot to the trek.
+        A trekker may cancel only their own bookings; an admin may cancel any booking. 
+        Cancelling an already-cancelled booking is a no-op and still returns 200, so the slot is never credited back twice.
+      operationId: cancelBooking
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: The booking is cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer, example: 7 }
+                  status: { type: string, example: Cancelled }
+                  message: { type: string, example: Cancelled }
+        '401':
+          description: The caller is not logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Login is required.
+        '404':
+          description: >
+            No such booking, or the booking belongs to another user and the caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Booking not found.
+
+components:
+
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: >
+        Flask's signed session cookie, set by POST /login. It carries user_id, username and role, which is what the API checks for authorisation.
+
+  schemas:
+
+    TrekSummary:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Hampta Pass }
+        location: { type: string, example: Manali }
+        difficulty:
+          type: string
+          enum: [Easy, Moderate, Hard]
+          example: Moderate
+        status:
+          type: string
+          enum: [Pending, Approved, Open, Closed, Completed]
+          example: Open
+        available_slots: { type: integer, example: 8 }
+        total_slots: { type: integer, example: 10 }
+        start_date: { type: string, format: date, nullable: true, example: '2026-08-01' }
+        end_date: { type: string, format: date, nullable: true, example: '2026-08-06' }
+
+    TrekDetail:
+      allOf:
+        - $ref: '#/components/schemas/TrekSummary'
+        - type: object
+          properties:
+            duration_days: { type: integer, example: 5 }
+            description:
+              type: string
+              nullable: true
+              example: A five-day crossing from Kullu to Lahaul.
+
+    TrekUpdate:
+      type: object
+      description: Every field is optional; only the ones supplied are updated.
+      properties:
+        name: { type: string, example: Hampta Pass }
+        location: { type: string, example: Manali }
+        difficulty:
+          type: string
+          enum: [Easy, Moderate, Hard]
+        available_slots:
+          type: integer
+          minimum: 0
+          example: 12
+        status:
+          type: string
+          enum: [Pending, Approved, Open, Closed, Completed]
+
+    Booking:
+      type: object
+      properties:
+        id: { type: integer, example: 7 }
+        user_id: { type: integer, example: 3 }
+        trek_id: { type: integer, example: 1 }
+        status:
+          type: string
+          enum: [Booked, Cancelled, Completed]
+          example: Booked
+        message: { type: string, example: Booked }
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: A human-readable explanation of what went wrong
+          example: Trek not found.

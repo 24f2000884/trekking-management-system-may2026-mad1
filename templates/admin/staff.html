@@ -7,12 +7,49 @@
     <a href="{{ url_for('add_staff') }}" class="btn btn-success">+ Add Staff</a>
   </div>
   <table class="table table-striped align-middle">
-    <thead><tr><th>Username</th><th>Email</th></tr></thead>
+    <thead><tr><th>Username</th><th>Email</th><th>Contact</th><th>Assigned Trek</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
       {% for s in staff %}
-      <tr><td>{{ s.username }}</td><td>{{ s.email }}</td></tr>
+      <tr><td>{{ s.username }}</td><td>{{ s.email }}</td><td>{% if s.staff_profile and s.staff_profile.contact %}{{ s.staff_profile.contact }}
+        {% else %}
+        <span class="text-muted">-</span>
+        {% endif %}
+      </td>
+      <td>
+        {% for t in staff_treks[s.id] %}
+        <span class='badge bg-light text-dark border'>{{ t.name }}</span>
+        {% else %}
+        <span class="text-muted small">Not assigned yet</span>
+        {% endfor %}
+      </td>
+      <td> {% if s.is_blacklisted %}
+        <span class="badge bg-dark">Blacklisted</span>
+        {% elif s.is_active %}
+        <span class="badge bg-success">Active</span>
+        {% else %}
+        <span class="badge bg-secondary">Inactive</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if s.is_active %}
+      <form method="POST" action="{{ url_for('remove_staff', user_id=s.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+      </form>
       {% else %}
-      <tr><td colspan="2" class="text-muted">No staff yet.</td></tr>
+      <form method="POST" action="{{ url_for('restore_staff', user_id=s.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-sm btn-outline-success">Reactivate</button>
+      </form>
+      {% endif %}
+      <form method="POST" action="{{ url_for('blacklist_user', user_id=s.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-sm btn-outline-dark">
+          {% if s.is_blacklisted %}Un-blacklist{% else %}Blacklist
+          {% endif %}
+        </button>
+      </form>
+      </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-muted">No staff yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

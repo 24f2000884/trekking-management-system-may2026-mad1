@@ -14,16 +14,20 @@
         <td>{{ t.name }}</td><td>{{ t.location }}</td><td>{{ t.difficulty }}</td>
         <td>{{ t.available_slots }} / {{ t.total_slots }}</td>
         <td><span class="badge bg-secondary">{{ t.status }}</span></td>
-        <td class="d-flex gap-1">
+        <td class="d-flex gap-1 align-items-center flex-wrap">
           <a href="{{ url_for('edit_trek', trek_id=t.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
           {% set nexts = {'Pending':['Approved'],'Approved':['Open','Pending'],'Open':['Closed'],'Closed':['Completed'],'Completed':[]} %}
-          {% if nexts[t.status] %}
+          {% if next_statuses[t.id] %}
           <form method="POST" action="{{ url_for('update_trek_status', trek_id=t.id) }}" class="d-inline-flex gap-1">
             <select name="status" class="form-select form-select-sm" style="width:auto">
-              {% for s in nexts[t.status] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+              {% for s in next_statuses[t.id] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
             </select>
             <button class="btn btn-sm btn-primary">Update</button>
           </form>
+          {% else %}
+          <span class="text-muted small fst-italic px-1" title="A completed trek cannot change status, its bookings have already been marked Completed.">
+            Final-no further changes
+          </span>
           {% endif %}
           <a href="{{ url_for('assign_staff', trek_id=t.id) }}" class="btn btn-sm btn-outline-info">Assign Staff</a>
           <form method="POST" action="{{ url_for('delete_trek', trek_id=t.id) }}"
